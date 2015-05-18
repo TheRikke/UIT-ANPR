@@ -35,6 +35,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
@@ -291,9 +292,15 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 		Bitmap og;
 		List<Point> currentPlatePointList = new ArrayList<Point>();
 		List<Rect> currentPlates = new ArrayList<Rect>();
+		Paint paint;
 
 		public PlateView(MainActivity context) throws IOException {
 			super(context);
+			paint = new Paint();
+			paint.setColor(Color.GREEN);
+			paint.setTextSize(20);
+			paint.setStrokeWidth(3);
+			paint.setStyle(Paint.Style.STROKE);
 		}
 
 		public void onPreviewFrame(final byte[] data, final Camera camera) {
@@ -342,13 +349,7 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 
 		@Override
 		protected void onDraw(Canvas canvas) {
-			Paint paint = new Paint();
-			paint.setColor(Color.GREEN);
-			paint.setTextSize(20);
 			if (plates != null) {
-				paint.setStrokeWidth(3);
-				paint.setStyle(Paint.Style.STROKE);
-
 				platesArray = plates.toArray();
 				boolean isHasNewPlate = false;
 				currentPlates.clear();
@@ -390,7 +391,7 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 		public void updateResult(String result) {
 			// TODO Auto-generated method stub
 			resultOCR.setText(result);
-			String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(Calendar.getInstance().getTime());
+			String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Calendar.getInstance().getTime());
 			
 			String toFile = "Date: " + timeStamp + "\n";
 			toFile += "Latitude: " + latitude + "\n";
@@ -409,7 +410,6 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 					// TODO: handle exception
 				}
 			}
-			
 		}
 
 		public class DoOCR extends AsyncTask<Void, Bitmap, String> {
@@ -434,121 +434,22 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 			protected String doInBackground(Void... params) {
 				Iterator<Rect> iterator = currentPlatesOnAsy.iterator();
 				BitmapWithCentroid tempBitmap;
-				long start, timeRequired;
+				long start;
 				String result = "";
 
 				while (iterator.hasNext()) {
 					start = System.currentTimeMillis();
 					Rect plateRect = iterator.next();
-					Mat plateImage;
-					List<BitmapWithCentroid> charList = new ArrayList<BitmapWithCentroid>();
+					Mat plateImageResized = extractPlateImage(plateRect);
 
-					int x = plateRect.x, y = plateRect.y, w = plateRect.width, h = plateRect.height;
+					List<MatOfPoint> contours = getContours(plateImageResized);
 
-					Rect roi = new Rect((int) (x), (int) (y), (int) (w),
-							(int) (h));
-
-					plateImage = new Mat(roi.size(), originImageOnAsy.type());
-
-					plateImage = originImageOnAsy.submat(roi);
-
-					Mat plateImageResized = new Mat();
-
-					Imgproc.resize(plateImage, plateImageResized, new Size(680,
-							492));
-
-					Mat plateImageGrey = new Mat();
-
-					Imgproc.cvtColor(plateImageResized, plateImageGrey,
-							Imgproc.COLOR_BGR2GRAY, 1);
-					Imgproc.medianBlur(plateImageGrey, plateImageGrey, 1);
-					Imgproc.adaptiveThreshold(plateImageGrey, plateImageGrey,
-							255, Imgproc.ADAPTIVE_THRESH_MEAN_C,
-							Imgproc.THRESH_BINARY, 85, 5);
-
-					List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
-
-					Mat hierarchy = new Mat(plateImageGrey.rows(),
-							plateImageGrey.cols(), CvType.CV_8UC1,
-							new Scalar(0));
-
-					Imgproc.findContours(plateImageGrey, contours, hierarchy,
-							Imgproc.CHAIN_APPROX_SIMPLE, Imgproc.RETR_LIST);
-
-					String recognizedText = "";
-					timeRequired = System.currentTimeMillis() - start;
-					Log.e(TAG, "Time for find countour: " + timeRequired);
-					Log.e(TAG, "Start loop!!!" + contours.size());
+					Log.e(TAG, "Time for find countours(" + contours.size() + "): " + (System.currentTimeMillis() - start));
 					start = System.currentTimeMillis();
 
-					for (int i = 0; i < contours.size(); i++) {
-						List<Point> goodpoints = new ArrayList<Point>();
-						Mat contour = contours.get(i);
-						int num = (int) contour.total();
-						int buff[] = new int[num * 2]; // [x1, y1, x2, y2, ...]
-						contour.get(0, 0, buff);
-						for (int q = 0; q < num * 2; q = q + 2) {
-							goodpoints.add(new Point(buff[q], buff[q + 1]));
-						}
+					List<BitmapWithCentroid> charList = findChars(plateImageResized, contours);
 
-						MatOfPoint points = new MatOfPoint();
-						points.fromList(goodpoints);
-						Rect boundingRect = Imgproc.boundingRect(points);
-
-						if (((boundingRect.height / boundingRect.width) >= 1.5)
-								&& ((boundingRect.height / boundingRect.width) <= 3.0)
-								&& ((boundingRect.height * boundingRect.width) >= 5000)) {
-
-							int cx = boundingRect.x + (boundingRect.width / 2);
-							int cy = boundingRect.y + (boundingRect.height / 2);
-
-							Point centroid = new Point(cx, cy);
-
-							if (centroid.y >= 120 && centroid.y <= 400
-									&& centroid.x >= 100 && centroid.x <= 590) {
-
-								int calWidth = (boundingRect.width + 5)
-										- (boundingRect.width + 5) % 4;
-
-								Rect cr = new Rect(boundingRect.x,
-										boundingRect.y, calWidth,
-										boundingRect.height);
-
-								Mat charImage = new Mat(
-										cr.size(),
-										plateImageResized.type());
-
-								charImage = plateImageResized.submat(cr);
-
-								Mat charImageGrey = new Mat(charImage.size(),
-										charImage.type());
-								Imgproc.cvtColor(charImage, charImageGrey,
-										Imgproc.COLOR_BGR2GRAY, 1);
-
-								Imgproc.adaptiveThreshold(charImageGrey,
-										charImageGrey, 255,
-										Imgproc.ADAPTIVE_THRESH_MEAN_C,
-										Imgproc.THRESH_BINARY, 85, 5);
-
-								Bitmap charImageBitmap = Bitmap.createBitmap(
-										charImageGrey.width(),
-										charImageGrey.height(),
-										Bitmap.Config.ARGB_8888);
-
-								org.opencv.android.Utils.matToBitmap(
-										charImageGrey, charImageBitmap);
-
-								tempBitmap = new BitmapWithCentroid(
-										charImageBitmap, centroid);
-								charList.add(tempBitmap);
-							}
-						}
-						// }
-					}
-
-					timeRequired = System.currentTimeMillis() - start;
-					Log.e(TAG, "Passed the loop");
-					Log.e(TAG, "Time for OCR: " + timeRequired);
+					Log.e(TAG, "Time for OCR: " + (System.currentTimeMillis() - start));
 
 					start = System.currentTimeMillis();
 					Collections.sort(charList);
@@ -556,52 +457,7 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 					SampleData data = new SampleData('?', DOWNSAMPLE_WIDTH,
 							DOWNSAMPLE_HEIGHT);
 
-					for (int index = 0; index < charList.size(); index++) {
-						newBitmap = charList.get(index).getBitmap();
-
-						final int wi = newBitmap.getWidth();
-						final int he = newBitmap.getHeight();
-
-						pixelMap = new int[newBitmap.getHeight()
-								* newBitmap.getWidth()];
-						newBitmap.getPixels(pixelMap, 0, newBitmap.getWidth(),
-								0, 0, newBitmap.getWidth(),
-								newBitmap.getHeight());
-
-						findBounds(wi, he);
-
-						ratioX = (double) (downSampleRight - downSampleLeft)
-								/ (double) data.getWidth();
-						ratioY = (double) (downSampleBottom - downSampleTop)
-								/ (double) data.getHeight();
-
-						for (int yy = 0; yy < data.getHeight(); yy++) {
-							for (int xx = 0; xx < data.getWidth(); xx++) {
-								if (downSampleRegion(xx, yy)) {
-									data.setData(xx, yy, true);
-								} else {
-									data.setData(xx, yy, false);
-								}
-							}
-						}
-
-						final double input[] = new double[20 * 50];
-						int idx = 0;
-						for (int yy = 0; yy < data.getHeight(); yy++) {
-							for (int xx = 0; xx < data.getWidth(); xx++) {
-								input[idx++] = data.getData(xx, yy) ? 0.5
-										: -0.5;
-							}
-						}
-
-						double normfac[] = new double[1];
-						double synth[] = new double[1];
-
-						int best = net.winner(input, normfac, synth);
-
-						recognizedText += net.getMap()[best];
-						Log.e(TAG, "Plate number:" + recognizedText);
-					}
+					String recognizedText = ocrChars(charList, data);
 
 					recognizedText = utils.formatPlateNumber(recognizedText);
 
@@ -610,8 +466,7 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 					else
 						result += "\n" + recognizedText;
 
-					timeRequired = System.currentTimeMillis() - start;
-					Log.e(TAG, "Time: " + timeRequired);
+					Log.e(TAG, "Time: " + (System.currentTimeMillis() - start));
 				}
 				return result;
 			}
@@ -631,9 +486,162 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 				listener.updateResult(aResult);
 			}
 
-		}
+			private Mat extractPlateImage(Rect plateRect) {
+				Rect roi = new Rect((int) (plateRect.x), (int) (plateRect.y), (int) (plateRect.width),
+						(int) (plateRect.height));
+				Mat plateImage;
+				plateImage = new Mat(roi.size(), originImageOnAsy.type());
 
+				plateImage = originImageOnAsy.submat(roi);
+
+				Mat plateImageResized = new Mat();
+
+				Imgproc.resize(plateImage, plateImageResized, new Size(680,
+						492));
+				return plateImageResized;
+			}
+
+			private List<MatOfPoint> getContours(Mat plateImageResized) {
+				Mat plateImageGrey = new Mat();
+
+				Imgproc.cvtColor(plateImageResized, plateImageGrey,
+						Imgproc.COLOR_BGR2GRAY, 1);
+				Imgproc.medianBlur(plateImageGrey, plateImageGrey, 1);
+				Imgproc.adaptiveThreshold(plateImageGrey, plateImageGrey,
+						255, Imgproc.ADAPTIVE_THRESH_MEAN_C,
+						Imgproc.THRESH_BINARY, 85, 5);
+
+				List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+
+				Mat hierarchy = new Mat(plateImageGrey.rows(),
+						plateImageGrey.cols(), CvType.CV_8UC1,
+						new Scalar(0));
+
+				Imgproc.findContours(plateImageGrey, contours, hierarchy,
+						Imgproc.CHAIN_APPROX_SIMPLE, Imgproc.RETR_LIST);
+				return contours;
+			}
+
+			private String ocrChars(List<BitmapWithCentroid> charList, SampleData data) {
+				String recognizedText = "";
+				for (int index = 0; index < charList.size(); index++) {
+					newBitmap = charList.get(index).getBitmap();
+
+					final int wi = newBitmap.getWidth();
+					final int he = newBitmap.getHeight();
+
+					pixelMap = new int[newBitmap.getHeight()
+							* newBitmap.getWidth()];
+					newBitmap.getPixels(pixelMap, 0, newBitmap.getWidth(),
+							0, 0, newBitmap.getWidth(),
+							newBitmap.getHeight());
+
+					findBounds(wi, he);
+
+					ratioX = (double) (downSampleRight - downSampleLeft)
+							/ (double) data.getWidth();
+					ratioY = (double) (downSampleBottom - downSampleTop)
+							/ (double) data.getHeight();
+
+					for (int yy = 0; yy < data.getHeight(); yy++) {
+						for (int xx = 0; xx < data.getWidth(); xx++) {
+							if (downSampleRegion(xx, yy)) {
+								data.setData(xx, yy, true);
+							} else {
+								data.setData(xx, yy, false);
+							}
+						}
+					}
+
+					final double input[] = new double[20 * 50];
+					int idx = 0;
+					for (int yy = 0; yy < data.getHeight(); yy++) {
+						for (int xx = 0; xx < data.getWidth(); xx++) {
+							input[idx++] = data.getData(xx, yy) ? 0.5
+									: -0.5;
+						}
+					}
+
+					double normfac[] = new double[1];
+					double synth[] = new double[1];
+
+					int best = net.winner(input, normfac, synth);
+
+					recognizedText += net.getMap()[best];
+					Log.e(TAG, "Plate number:" + recognizedText);
+				}
+				return recognizedText;
+			}
+
+			private List<BitmapWithCentroid> findChars( Mat plateImageResized, List<MatOfPoint> contours) {
+				List<BitmapWithCentroid> charList = new ArrayList<BitmapWithCentroid>();
+				BitmapWithCentroid tempBitmap;
+				for (int i = 0; i < contours.size(); i++) {
+					List<Point> goodpoints = new ArrayList<Point>();
+					Mat contour = contours.get(i);
+					int num = (int) contour.total();
+					int buff[] = new int[num * 2]; // [x1, y1, x2, y2, ...]
+					contour.get(0, 0, buff);
+					for (int q = 0; q < num * 2; q = q + 2) {
+						goodpoints.add(new Point(buff[q], buff[q + 1]));
+					}
+
+					MatOfPoint points = new MatOfPoint();
+					points.fromList(goodpoints);
+					Rect boundingRect = Imgproc.boundingRect(points);
+
+					if (((boundingRect.height / boundingRect.width) >= 1.5)
+							&& ((boundingRect.height / boundingRect.width) <= 3.0)
+							&& ((boundingRect.height * boundingRect.width) >= 5000)) {
+
+						int cx = boundingRect.x + (boundingRect.width / 2);
+						int cy = boundingRect.y + (boundingRect.height / 2);
+
+						Point centroid = new Point(cx, cy);
+
+						if (centroid.y >= 120 && centroid.y <= 400
+								&& centroid.x >= 100 && centroid.x <= 590) {
+
+							int calWidth = (boundingRect.width + 5)
+									- (boundingRect.width + 5) % 4;
+
+							Rect cr = new Rect(boundingRect.x,
+									boundingRect.y, calWidth,
+									boundingRect.height);
+							Log.e(TAG, "rect: " + cr.toString() + "Image size: " + plateImageResized.size().toString() + " Boundingrect: " + boundingRect.toString());
+							//(0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
+							Mat charImage = plateImageResized.submat(cr);
+
+							Mat charImageGrey = new Mat(charImage.size(),
+									charImage.type());
+							Imgproc.cvtColor(charImage, charImageGrey,
+									Imgproc.COLOR_BGR2GRAY, 1);
+
+							Imgproc.adaptiveThreshold(charImageGrey,
+									charImageGrey, 255,
+									Imgproc.ADAPTIVE_THRESH_MEAN_C,
+									Imgproc.THRESH_BINARY, 85, 5);
+
+							Bitmap charImageBitmap = Bitmap.createBitmap(
+									charImageGrey.width(),
+									charImageGrey.height(),
+									Bitmap.Config.ARGB_8888);
+
+							org.opencv.android.Utils.matToBitmap(
+									charImageGrey, charImageBitmap);
+
+							tempBitmap = new BitmapWithCentroid(
+									charImageBitmap, centroid);
+							charList.add(tempBitmap);
+						}
+					}
+					// }
+				}
+				return charList;
+			}
+		}
 	}
+
 
 	protected boolean downSampleRegion(final int x, final int y) {
 		final int w = this.newBitmap.getWidth();
