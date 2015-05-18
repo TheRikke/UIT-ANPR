@@ -602,14 +602,17 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 						if (centroid.y >= 120 && centroid.y <= 400
 								&& centroid.x >= 100 && centroid.x <= 590) {
 
-							int calWidth = (boundingRect.width + 5)
-									- (boundingRect.width + 5) % 4;
+							int calWidth = (boundingRect.width + 3)
+									- (boundingRect.width + 3) % 4;
+
+							if (calWidth > plateImageResized.width() - boundingRect.x) {
+								calWidth -= 4;
+							}
 
 							Rect cr = new Rect(boundingRect.x,
 									boundingRect.y, calWidth,
 									boundingRect.height);
-							Log.e(TAG, "rect: " + cr.toString() + "Image size: " + plateImageResized.size().toString() + " Boundingrect: " + boundingRect.toString());
-							//(0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
+
 							Mat charImage = plateImageResized.submat(cr);
 
 							Mat charImageGrey = new Mat(charImage.size(),
