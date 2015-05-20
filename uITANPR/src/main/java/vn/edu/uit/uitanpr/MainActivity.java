@@ -447,19 +447,16 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 					Log.e(TAG, "Time for find countours(" + contours.size() + "): " + (System.currentTimeMillis() - start));
 					start = System.currentTimeMillis();
 
-					List<BitmapWithCentroid> charList = findChars(plateImageResized, contours);
+					List<BitmapWithCentroid> charList = extractChars(plateImageResized, contours);
 
 					Log.e(TAG, "Time for OCR: " + (System.currentTimeMillis() - start));
 
 					start = System.currentTimeMillis();
-					Collections.sort(charList);
 
 					SampleData data = new SampleData('?', DOWNSAMPLE_WIDTH,
 							DOWNSAMPLE_HEIGHT);
 
 					String recognizedText = ocrChars(charList, data);
-
-					recognizedText = utils.formatPlateNumber(recognizedText);
 
 					if (TextUtils.isEmpty(result))
 						result = recognizedText;
@@ -573,7 +570,7 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 				return recognizedText;
 			}
 
-			private List<BitmapWithCentroid> findChars( Mat plateImageResized, List<MatOfPoint> contours) {
+			private List<BitmapWithCentroid> extractChars(Mat plateImageResized, List<MatOfPoint> contours) {
 				List<BitmapWithCentroid> charList = new ArrayList<BitmapWithCentroid>();
 				BitmapWithCentroid tempBitmap;
 				for (int i = 0; i < contours.size(); i++) {
