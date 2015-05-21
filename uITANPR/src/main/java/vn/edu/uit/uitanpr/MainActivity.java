@@ -520,10 +520,27 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 				return contours;
 			}
 
-			private String ocrChars(List<BitmapWithCentroid> charList, SampleData data) {
+			private boolean hasSpaceBefore(List<BitmapWithCentroid> charList, int index) {
+				boolean result = false;
+
+				if(index > 0) {
+					BitmapWithCentroid currentBitmapWithCentroid = charList.get(index);
+					Point newCentroid = currentBitmapWithCentroid.getCentroid();
+					Point oldCentroid = charList.get(index - 1).getCentroid();
+					int width = currentBitmapWithCentroid.getBitmap().getWidth();
+
+					result = (newCentroid.x - oldCentroid.x > (width + width / 3)) || newCentroid.x < oldCentroid.x;
+				}
+				return result;
+			}
+
+			private String ocrChars(List<BitmapWithCentroid> charList) {
 				String recognizedText = "";
 				for (int index = 0; index < charList.size(); index++) {
 					newBitmap = charList.get(index).getBitmap();
+					if(hasSpaceBefore(charList, index)) {
+						recognizedText += " ";
+					}
 
 					final int wi = newBitmap.getWidth();
 					final int he = newBitmap.getHeight();
