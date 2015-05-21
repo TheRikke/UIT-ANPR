@@ -452,6 +452,7 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 					Log.e(TAG, "Time for OCR: " + (System.currentTimeMillis() - start));
 
 					start = System.currentTimeMillis();
+					Collections.sort(charList);
 
 					SampleData data = new SampleData('?', DOWNSAMPLE_WIDTH,
 							DOWNSAMPLE_HEIGHT);
