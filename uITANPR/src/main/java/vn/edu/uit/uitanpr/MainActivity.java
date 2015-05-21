@@ -454,10 +454,7 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 					start = System.currentTimeMillis();
 					Collections.sort(charList);
 
-					SampleData data = new SampleData('?', DOWNSAMPLE_WIDTH,
-							DOWNSAMPLE_HEIGHT);
-
-					String recognizedText = ocrChars(charList, data);
+					String recognizedText = ocrChars(charList);
 
 					if (TextUtils.isEmpty(result))
 						result = recognizedText;
@@ -554,25 +551,15 @@ public class MainActivity extends Activity implements OnTaskCompleted, GPSCallba
 					findBounds(wi, he);
 
 					ratioX = (double) (downSampleRight - downSampleLeft)
-							/ (double) data.getWidth();
+							/ (double) DOWNSAMPLE_WIDTH;
 					ratioY = (double) (downSampleBottom - downSampleTop)
-							/ (double) data.getHeight();
+							/ (double) DOWNSAMPLE_HEIGHT;
 
-					for (int yy = 0; yy < data.getHeight(); yy++) {
-						for (int xx = 0; xx < data.getWidth(); xx++) {
-							if (downSampleRegion(xx, yy)) {
-								data.setData(xx, yy, true);
-							} else {
-								data.setData(xx, yy, false);
-							}
-						}
-					}
-
-					final double input[] = new double[20 * 50];
+					final double input[] = new double[DOWNSAMPLE_WIDTH * DOWNSAMPLE_HEIGHT];
 					int idx = 0;
-					for (int yy = 0; yy < data.getHeight(); yy++) {
-						for (int xx = 0; xx < data.getWidth(); xx++) {
-							input[idx++] = data.getData(xx, yy) ? 0.5
+					for (int yy = 0; yy < DOWNSAMPLE_HEIGHT; yy++) {
+						for (int xx = 0; xx < DOWNSAMPLE_WIDTH; xx++) {
+							input[idx++] = downSampleRegion(xx, yy) ? 0.5
 									: -0.5;
 						}
 					}
